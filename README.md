@@ -11,11 +11,11 @@ The DNS Takeover Checker is a Python script that checks whether a subdomain is v
 
 ## Features
 
-✔️ Automatic parent domain inference (can also be provided manually).
-✔️ Identifies AWS Route 53 name servers linked to potential orphaned delegations.
-✔️ Verifies if the NS servers actually resolve the subdomain.
-✔️ Handles multiple DNS resolution scenarios (NXDOMAIN, SERVFAIL, timeouts).
-✔️ Provides next steps for remediation if a takeover risk is detected.
+✔️ Automatic parent domain inference (can also be provided manually).  
+✔️ Identifies AWS Route 53 name servers linked to potential orphaned delegations.  
+✔️ Verifies if the NS servers actually resolve the subdomain.  
+✔️ Handles multiple DNS resolution scenarios (NXDOMAIN, SERVFAIL, timeouts).  
+✔️ Provides next steps for remediation if a takeover risk is detected.  
 
 ## Installation
 
