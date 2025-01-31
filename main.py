@@ -11,13 +11,6 @@ def get_ns_records(domain):
 
     Returns:
         list: A list of NS records as strings. Returns an empty list if no records are found or if an error occurs.
-
-    Exceptions:
-        Handles the following exceptions:
-        - dns.resolver.NoAnswer: No answer was found for the query.
-        - dns.resolver.NXDOMAIN: The domain does not exist.
-        - dns.resolver.LifetimeTimeout: The query timed out.
-        - Exception: Any other exceptions that may occur during the query.
     """
     try:
         answer = dns.resolver.resolve(domain, 'NS')
@@ -36,18 +29,13 @@ def get_ns_records(domain):
 
 def infer_parent_domain(subdomain):
     """
-    Infer the parent domain from a given subdomain.
-
-    This function takes a subdomain as input and returns the parent domain by
-    removing the first label from the subdomain. If the subdomain consists of
-    only one or two labels, the function returns None.
+    Infers the parent domain from a given subdomain.
 
     Args:
         subdomain (str): The subdomain from which to infer the parent domain.
 
     Returns:
-        str or None: The parent domain if the subdomain has more than two labels,
-        otherwise None.
+        str: The parent domain if the subdomain has more than two parts, otherwise None.
     """
     parts = subdomain.split('.')
     if len(parts) > 2:
@@ -55,27 +43,70 @@ def infer_parent_domain(subdomain):
     return None
 
 
+def check_ns_resolution(subdomain, ns_servers):
+    """
+    Check if the given NS servers can actually resolve the subdomain.
+
+    Args:
+        subdomain (str): The subdomain to check.
+        ns_servers (list): List of NS servers to test.
+
+    Returns:
+        bool: True if at least one NS resolves the domain, False otherwise.
+    """
+    print("\n🔄 Checking if NS servers can resolve the subdomain...")
+
+    resolving_ns = []
+    for ns in ns_servers:
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.nameservers = [dns.resolver.resolve(ns, 'A')[0].to_text()]
+            resolver.timeout = 3
+            resolver.lifetime = 5
+
+            resolver.resolve(subdomain, 'A')
+            resolving_ns.append(ns)
+            print(f"  ✅  {ns} can resolve {subdomain}.")
+        except dns.resolver.NoAnswer:
+            print(f"  ⚠️  {ns} did not return an answer for {subdomain}.")
+        except dns.resolver.NXDOMAIN:
+            print(f"  ❌  {subdomain} does not exist when queried through {ns}.")
+        except dns.resolver.Timeout:
+            print(f"  ⏳  Timeout querying {ns} for {subdomain}.")
+        except dns.resolver.NoNameservers:
+            print(f"  ❌  {ns} does not have any valid name servers responding.")
+        except Exception as e:
+            print(f"  ❌  Error checking {ns}: {e}")
+
+    if not resolving_ns:
+        print("⚠️  None of the NS servers were able to resolve the subdomain. Possible orphaned delegation!")
+        return False
+    return True
+
+
 def check_vulnerability(subdomain, parent_domain=None):
     """
     Check DNS takeover vulnerability for a given subdomain.
-    This function performs several checks to determine if a subdomain
-    is vulnerable to DNS takeover, particularly focusing on AWS name servers.
+    This function performs several checks to determine if a subdomain is vulnerable to DNS takeover,
+    particularly focusing on AWS name servers.
     Args:
         subdomain (str): The subdomain to check for vulnerability.
-        parent_domain (str, optional): The parent domain of the subdomain.
-        If not provided, it will be inferred.
+        parent_domain (str, optional): The parent domain of the subdomain. If not provided, it will be inferred.
     Returns:
         None: The function prints the results of the checks and does not return any value.
     Steps:
         1. Infer the parent domain if not provided.
-        2. Retrieve NS records for the subdomain.
-        3. Retrieve NS records for the parent domain.
+        2. Get NS records for the subdomain.
+        3. Get NS records for the parent domain.
         4. Verify if the subdomain is delegated separately from the parent domain.
         5. Check if the NS servers belong to AWS.
         6. Check if the subdomain is resolving properly.
+        7. Check if the NS records can actually resolve the subdomain.
     Notes:
-        - If AWS NS are detected, additional manual checks in AWS Route 53 may be required.
-        - The function handles various DNS resolution exceptions to provide detailed feedback.
+        - If the subdomain uses the same NS as the parent domain, no delegation is detected.
+        - If AWS name servers are detected, further checks are performed to determine if the subdomain is resolving.
+        - If the subdomain does not resolve or has no name servers responding, it might indicate an orphaned delegation.
+        - The function suggests manually checking Route 53 for orphaned zones if AWS credentials are available.
     """
     print(f"\n🔍 Checking DNS takeover vulnerability for: {subdomain}")
 
@@ -83,15 +114,15 @@ def check_vulnerability(subdomain, parent_domain=None):
     if not parent_domain:
         parent_domain = infer_parent_domain(subdomain)
         if not parent_domain:
-            print("❌ Unable to infer parent domain. Please provide it explicitly.")
+            print(" ❌ Unable to infer parent domain. Please provide it explicitly.")
             return
 
-    print(f"  ➤ Using parent domain: {parent_domain}")
+    print(f"  ➤  Using parent domain: {parent_domain}")
 
     # Step 1: Get NS records for the subdomain
     subdomain_ns = get_ns_records(subdomain)
     if not subdomain_ns:
-        print(f"❌ No NS records found for {subdomain}. It may not be delegated.")
+        print(f" ❌ No NS records found for {subdomain}. It may not be delegated.")
         return
 
     print(f"  ✅ Found NS records for {subdomain}: {', '.join(subdomain_ns)}")
@@ -117,7 +148,7 @@ def check_vulnerability(subdomain, parent_domain=None):
         # Step 5: Check if the subdomain is resolving (SERVFAIL means possible orphaned delegation)
         try:
             dns.resolver.resolve(subdomain, 'A')
-            print("  ✅ Subdomain resolves properly. It is not vulnerable.")
+            print("  ✅  Subdomain resolves properly. It is not vulnerable.")
         except dns.resolver.NoAnswer:
             print(f"⚠️  No A record found for {subdomain}. This might indicate an issue.")
         except dns.resolver.NXDOMAIN:
@@ -127,10 +158,10 @@ def check_vulnerability(subdomain, parent_domain=None):
         except dns.resolver.NoNameservers:
             print(f"⚠️ No name servers responding for {subdomain}. Possible orphaned delegation!")
 
-        print("\n🛠  Next step: If you have AWS credentials, manually check Route 53 for orphaned zones.")
+    # Step 6: Check if the NS records can actually resolve the subdomain
+    check_ns_resolution(subdomain, subdomain_ns)
 
-    else:
-        print("  ✅ NS records are not pointing to AWS. This subdomain is likely not vulnerable.")
+    print("\n🛠  Next step: If you have AWS credentials, manually check Route 53 for orphaned zones.")
 
 
 if __name__ == "__main__":
