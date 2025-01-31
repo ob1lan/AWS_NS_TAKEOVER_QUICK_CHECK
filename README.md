@@ -25,7 +25,7 @@ Ensure you have Python 3 installed. Then, install the required dependencies:
 pip install dnspython
 ```
 
-##Usage
+## Usage
 
 ### Basic Usage
 
@@ -38,7 +38,7 @@ python main.py <subdomain>
 Example:
 
 ```
-python main.py sentry-api.gc.stepstone.com
+python main.py sub.example.com
 ```
 
 ### Specifying Parent Domain (Optional)
@@ -52,7 +52,7 @@ python main.py <subdomain> <parent_domain>
 Example:
 
 ```
-python main.py sentry-api.gc.stepstone.com gc.stepstone.com
+python main.py sub.example.com example.com
 ```
 
 ## How It Works
