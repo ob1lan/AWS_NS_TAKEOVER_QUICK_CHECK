@@ -135,7 +135,7 @@ def check_vulnerability(subdomain, parent_domain=None):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python dns_takeover_check.py <subdomain> [parent_domain]")
+        print("Usage: python main.py <subdomain> [parent_domain]")
         sys.exit(1)
 
     subdomain = sys.argv[1]
