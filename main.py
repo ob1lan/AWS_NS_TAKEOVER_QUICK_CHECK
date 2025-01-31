@@ -1,8 +1,24 @@
 import dns.resolver
 import sys
 
+
 def get_ns_records(domain):
-    """Fetch NS records for a domain."""
+    """
+    Fetch NS (Name Server) records for a given domain.
+
+    Args:
+        domain (str): The domain name to query for NS records.
+
+    Returns:
+        list: A list of NS records as strings. Returns an empty list if no records are found or if an error occurs.
+
+    Exceptions:
+        Handles the following exceptions:
+        - dns.resolver.NoAnswer: No answer was found for the query.
+        - dns.resolver.NXDOMAIN: The domain does not exist.
+        - dns.resolver.LifetimeTimeout: The query timed out.
+        - Exception: Any other exceptions that may occur during the query.
+    """
     try:
         answer = dns.resolver.resolve(domain, 'NS')
         return [str(rr) for rr in answer]
@@ -17,14 +33,50 @@ def get_ns_records(domain):
         print(f"❌ Error querying NS for {domain}: {e}")
         return []
 
+
 def infer_parent_domain(subdomain):
-    """Infer parent domain by removing the first label from the subdomain."""
+    """
+    Infer the parent domain from a given subdomain.
+
+    This function takes a subdomain as input and returns the parent domain by
+    removing the first label from the subdomain. If the subdomain consists of
+    only one or two labels, the function returns None.
+
+    Args:
+        subdomain (str): The subdomain from which to infer the parent domain.
+
+    Returns:
+        str or None: The parent domain if the subdomain has more than two labels,
+        otherwise None.
+    """
     parts = subdomain.split('.')
     if len(parts) > 2:
-        return '.'.join(parts[1:])  # Remove first label
+        return '.'.join(parts[1:])
     return None
 
+
 def check_vulnerability(subdomain, parent_domain=None):
+    """
+    Check DNS takeover vulnerability for a given subdomain.
+    This function performs several checks to determine if a subdomain
+    is vulnerable to DNS takeover, particularly focusing on AWS name servers.
+    Args:
+        subdomain (str): The subdomain to check for vulnerability.
+        parent_domain (str, optional): The parent domain of the subdomain.
+        If not provided, it will be inferred.
+    Returns:
+        None: The function prints the results of the checks and does not return any value.
+    Steps:
+        1. Infer the parent domain if not provided.
+        2. Retrieve NS records for the subdomain.
+        3. Retrieve NS records for the parent domain.
+        4. Verify if the subdomain is delegated separately from the parent domain.
+        5. Check if the NS servers belong to AWS.
+        6. Check if the subdomain is resolving properly.
+    Notes:
+        - If AWS NS are detected, additional manual checks in AWS Route 53 may be required.
+        - The function handles various DNS resolution exceptions to provide detailed feedback.
+    """
     print(f"\n🔍 Checking DNS takeover vulnerability for: {subdomain}")
 
     # Infer parent domain if not provided
@@ -58,7 +110,7 @@ def check_vulnerability(subdomain, parent_domain=None):
     # Step 4: Check if the NS servers belong to AWS
     aws_ns_pattern = (".awsdns-", ".amazonaws.com")
     aws_ns_servers = [ns for ns in subdomain_ns if any(pattern in ns.lower() for pattern in aws_ns_pattern)]
-    
+
     if aws_ns_servers:
         print(f"⚠️  Detected AWS Name Servers: {', '.join(aws_ns_servers)}")
 
@@ -80,7 +132,7 @@ def check_vulnerability(subdomain, parent_domain=None):
     else:
         print("  ✅ NS records are not pointing to AWS. This subdomain is likely not vulnerable.")
 
-# Command-line interface
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python dns_takeover_check.py <subdomain> [parent_domain]")
